@@ -1,0 +1,75 @@
+services:
+  kafka-2:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka-2
+    ports:
+      - "9092:9092"     # 호스트에서 브로커2에 직접 접속할 때
+      - "29092:29092"   # 외부에서 직접 접속할 때 리스너
+      - "29093:29093"
+    environment:
+        # 클러스터 ID  (한번만 생성 후 고정값 사용)
+        # docker run --rm confluentinc/cp-kafka:7.4.0 kafka-storage random-uuid
+      CLUSTER_ID: "gp9R2mwwSaG2yjUkejHfow"
+
+        # KRaft (zookeeper 대신)
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 2
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@172.31.10.15:29093,2@172.31.10.116:29093,3@172.31.15.112:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+        # 리스너 설정 (내부/외부/컨트롤러)
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+
+        # 클라이언트에게 알려줄 주소 (광고 주소)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.31.10.116:9092
+
+        # 클러스터/토픽 기본값
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_NUM_PARTITIONS: 3              # 새로 생성되는 토픽 기본 파티션 수
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka_2_data:/var/lib/kafka/data
+
+  consumer-3:
+    build: ../backend
+    container_name: consumer-3
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - kafka-2
+    environment:
+      KAFKA_CLIENT_ID: random-coupon-consumer-3
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: 172.31.10.15  # 1번의 private ip
+      KAFKA_BOOTSTRAP_SERVERS: "172.31.10.15:9092,172.31.10.116:9092,172.31.15.112:9092"
+    command: ["python","manage.py","coupon_issue_consumer",
+              "--topic","random-coupon-topic",
+              "--group","coupon-consumer-group",
+              "--bootstrap","172.31.10.15:9092,172.31.10.116:9092,172.31.15.112:9092"]
+    restart: always
+
+  consumer-4:
+    build: ../backend
+    container_name: consumer-4
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - kafka-2
+    environment:
+      KAFKA_CLIENT_ID: random-coupon-consumer-4
+      DJANGO_SETTINGS_MODULE: config.settings
+      DB_HOST: 172.31.10.15  # 1번의 private ip
+      KAFKA_BOOTSTRAP_SERVERS: "172.31.10.15:9092,172.31.10.116:9092,172.31.15.112:9092"
+    command: ["python","manage.py","coupon_issue_consumer",
+              "--topic","random-coupon-topic",
+              "--group","coupon-consumer-group",
+              "--bootstrap","172.31.10.15:9092,172.31.10.116:9092,172.31.15.112:9092"]
+    restart: always
+  
+volumes:
+  kafka_2_data: {}
