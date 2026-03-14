@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 7s
+
+scrape_configs:
+  - job_name: 'kafka_exporter'
+    static_configs: 
+      - targets: ['172.31.10.15:9308','172.31.10.116:9308','172.31.15.112:9308']
+  - job_name: 'cadvisor'
+    static_configs: 
+      - targets: ['172.31.10.15:8080','172.31.10.116:8080','172.31.15.112:8080']

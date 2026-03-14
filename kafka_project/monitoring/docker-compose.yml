@@ -1,0 +1,63 @@
+services:
+  victoria:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoria
+    ports: ["8428:8428"]                # PromQL/Remote Write 엔드포인트
+    command: ["-retentionPeriod=7d"]    # 보관기간 예시
+    volumes:
+      - vm_data:/victoria-metrics-data
+    networks: [main_net]
+
+  vmagent:
+    image: victoriametrics/vmagent:latest
+    container_name: vmagent
+    command: >
+      -promscrape.config=/etc/vmagent.yml
+      -remoteWrite.url=http://victoria:8428/api/v1/write
+    volumes:
+      - ./vmagent.yml:/etc/vmagent.yml:ro
+    networks: [main_net]
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - victoria
+    networks: [main_net]
+
+  # Kafka 지표(토픽/파티션/컨슈머그룹 lag 등)
+  kafka-exporter:
+    image: danielqsj/kafka-exporter
+    container_name: kafka-exporter
+    command:
+      - "--kafka.server=172.31.10.15:9092"
+        #      - "--kafka.server=172.31.10.116:9092"
+        #      - "--kafka.server=172.31.15.112:9092"
+    ports:
+      - "9308:9308"
+    networks: [main_net]
+
+  # 컨테이너 CPU/메모리/네트워크/I/O
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports: ["8080:8080"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [main_net]
+
+volumes:
+  vm_data: {}
+  grafana_data: {}
+
+networks:
+  main_net:
+    external: true    # infra에서 만든 main_net 사용
+    name: infra_main_net
